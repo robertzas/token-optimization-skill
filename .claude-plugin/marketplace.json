@@ -1,0 +1,14 @@
+{
+  "name": "token-optimization-skill",
+  "description": "Token-efficient agentic coding for Claude Code.",
+  "owner": {
+    "name": "Robert Z"
+  },
+  "plugins": [
+    {
+      "name": "token-optimization",
+      "source": "./",
+      "description": "Progressive loading, quiet tools, prompt-cache-aware clear-or-keep checkpoints, and a repo setup that keeps sessions cheap."
+    }
+  ]
+}

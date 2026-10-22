@@ -1,0 +1,14 @@
+{
+  "name": "token-optimization",
+  "displayName": "Token Optimization",
+  "version": "0.1.0",
+  "description": "Token-efficient agentic coding for Claude Code: progressive loading, quiet tools, prompt-cache-aware clear-or-keep checkpoints, and a repo setup that keeps sessions cheap.",
+  "author": {
+    "name": "Robert Z",
+    "url": "https://github.com/robertzas"
+  },
+  "homepage": "https://github.com/robertzas/token-optimization-skill",
+  "repository": "https://github.com/robertzas/token-optimization-skill",
+  "license": "MIT OR Apache-2.0",
+  "keywords": ["tokens", "cost", "prompt-caching", "context", "agents"]
+}
