@@ -15,11 +15,12 @@ These are the pieces used in the repo this skill came from, with why each one sa
 8. Quiet tooling
 9. Durable state
 10. Checkpoints in the session protocol
+11. An on-demand checkpoints doc
 - Auditing an existing repo
 
 ## 1. A short entry file
 
-`AGENTS.md` (from `templates/AGENTS.template.md`) holds the standing directives, the session protocol, the token rules, a doc map and the definition of done, and nothing else. `CLAUDE.md` (from `templates/CLAUDE.template.md`) is the line `@AGENTS.md` plus Claude Code specifics, so every agent reads the same source.
+`AGENTS.md` (from `templates/AGENTS.template.md`) holds the standing directives, the session protocol, the token rules, a doc map and the definition of done, and nothing else. `CLAUDE.md` (from `templates/CLAUDE.template.md`) is the line `@AGENTS.md` plus Claude Code specifics, so every agent reads the same source. The clear-or-keep maths stays out of the entry file, in `CHECKPOINTS.md` (section 11).
 
 Keep the entry file short: every request of every session carries it.
 
@@ -84,13 +85,18 @@ The protocol has four steps:
 1. **Start:** read `STATUS.md`, then the current roadmap section.
 2. **Locate:** use the code map and contracts.
 3. **Work:** one package at a time, with tests alongside the code.
-4. **Finish:** run check → tick the roadmap → rewrite `STATUS.md` → commit → push → wait for green CI → make the clear-or-keep checkpoint decision (see SKILL.md).
+4. **Finish:** run check → tick the roadmap → rewrite `STATUS.md` → commit → push → wait for green CI → make the clear-or-keep checkpoint decision (see section 11).
+
+## 11. An on-demand checkpoints doc
+
+`CHECKPOINTS.md` (from `templates/CHECKPOINTS.template.md`) holds the cost model and the clear-or-keep test that the entry file only points at. It is read at a checkpoint, not on every request, so the entry file stays short while the maths stays exact. The doc map in the entry file has a row for it.
 
 ## Auditing an existing repo
 
 Report findings as a short table with one row per item: the item, what you found, the fix, and a rough token impact. Check:
 
 - Is the always-loaded entry file short? What does it add to every request?
+- Is the clear-or-keep maths in an on-demand doc (the doc map points to it), not in the entry file?
 - Is there a handoff file that names exactly what to load next?
 - Can the roadmap and specs be read one section at a time?
 - Can agents find decisions without reading history?

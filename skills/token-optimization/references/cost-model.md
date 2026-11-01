@@ -1,6 +1,6 @@
 # Cost model
 
-Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-claude/pricing. When they change, update the table and the ratios here, the ratio line and table in SKILL.md, and `MODELS` in `scripts/clear_or_keep.py`.
+Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-claude/pricing. When they change, update the tables here, the "Why" paragraph and ratio line in SKILL.md, `templates/CHECKPOINTS.template.md`, and `MODELS` in `scripts/clear_or_keep.py`.
 
 ## Contents
 - Prices
@@ -10,6 +10,7 @@ Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-c
 - Worked example
 - /compact versus /clear
 - Subagents
+- Fixed per-request overhead
 
 ## Prices (USD per million tokens)
 
@@ -31,7 +32,7 @@ Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-c
 ## How a session is billed
 
 - Each request re-sends the whole context. The prefix that hits the cache costs the read price. Everything after the last hit is written to the cache at the write price, or billed as plain input if it isn't cached.
-- A cache hit refreshes the entry's TTL for free. The TTL counts from the *start* of a request, so a long generation uses up part of it.
+- A cache hit refreshes the entry's TTL for free. The TTL counts from the *start* of a request, so a long generation uses up part of it. Work in bursts inside the TTL window: keep requests flowing, and if a pause longer than the TTL is coming, checkpoint (clear) first.
 - Claude Code caches automatically. The sessions this skill was built in (Claude Code on a subscription plan) used the 1-hour TTL, falling back to 5 minutes during usage overage. Check what your setup uses: on the API, `usage.cache_creation` splits writes by TTL.
 - Thinking is billed as output. Recent models keep earlier turns' thinking blocks in the prompt, so long thinking is also carried forward like any other context.
 - Totals: `input_tokens` is only the uncached remainder. The full prompt is `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`.
@@ -45,11 +46,11 @@ The cache is a prefix in the order tools → system → messages. A change inval
 | Switching model | everything (caches are per model) |
 | Toggling fast mode (speed) | system and messages |
 | Changing thinking or effort settings | messages, and more on some models |
-| Changing tool definitions | everything |
-| Editing the system prompt | system and messages |
+| Changing tool definitions (adding/removing an MCP server, plugin or skill) | everything |
+| Editing the system prompt or an entry file (AGENTS.md, CLAUDE.md, `@` imports) | system and messages |
 | Idling longer than the TTL | everything |
 
-In Claude Code, run `/model` and `/fast` right after a `/clear` rather than partway through a long session. Effort changes may also re-write the conversation.
+Each change re-writes the cache from its point onward, so bundle every prefix-breaking change — model, speed, effort, tools, entry files — into one burst right after a `/clear`. Never make them one by one partway through a long session: each one makes everything after it a cache miss.
 
 ## The clear-or-keep test
 
@@ -65,6 +66,8 @@ The calculation, while the cache is warm:
 - Clearing reloads R once and costs w·R.
 - Clear when r·D·c > w·R, which is the same as D·c > (w ÷ r)·R.
 
+**Keep R small.** R is the reload after a clear: a tight STATUS.md (≤ 40 lines), the doc map and one roadmap section. The smaller R is, the cheaper every clear is, so clear more readily. A bloated handoff makes keeping look artificially cheap.
+
 | Read multiplier | w ÷ r, 1-hour TTL (w = 2) | w ÷ r, 5-minute TTL (w = 1.25) |
 |---|---|---|
 | 0.1 (most models) | 20 | 12.5 |
@@ -78,6 +81,14 @@ The break-even number of requests is c* = (w ÷ r)·R ÷ D. With a ratio of 40 a
 | 10k | 100 requests |
 | 50k | 20 requests |
 | 100k | 10 requests |
+
+Read the other way, as a threshold on D (ratio 40, R ≈ 25k):
+
+| Work ahead | Clear when the unused context exceeds about |
+|---|---|
+| A follow-up (~10 requests) | 100k |
+| A small task (~50 requests) | 20k |
+| A full work package (100+ requests) | 10k |
 
 **Cold cache.** After an idle gap longer than the TTL, keeping re-writes the whole context, D included, and costs w·D + r·D·c. The needed part is written either way, so clearing costs only the re-orientation share of R. Clear unless D is small.
 
@@ -103,3 +114,13 @@ The costs are similar, but the compact summary is ad hoc and nobody reviews it. 
 A subagent starts with a fresh context. It pays for its own base prompt and everything it reads at the write price, and hands back only its final report. That saves tokens when the main session would otherwise carry the raw material through many requests.
 
 Example: a search reads 60k tokens to produce a 2k answer, and the main session has 100 requests ahead. Done inline, it costs about 2 × 60k + 0.05 × 58k × 100 ≈ 410k equivalents. In a subagent it costs about 2 × (60k + its base prompt), well under that. For small lookups, work inline.
+
+A mechanical subagent (search, bulk rename, log triage) can run on a cheaper model: the same tokens on Haiku 4.5 cost a fifth of Opus 4.8, and Sonnet 5.5 half of Opus 5.5. Keep judgment-heavy work on the main model.
+
+## Fixed per-request overhead
+
+Some tokens ride on every request before any work happens: the system prompt, tool definitions (including every enabled MCP server's tools), the listing of installed skills, and the entry files (CLAUDE.md, AGENTS.md and their `@` imports). They are cheap per request because they are cached, but they are paid on every request of every session, and a change to any of them re-writes the cache from that point on.
+
+- An entry file of 1k tokens costs 0.05 × 1k × 100 = 5k equivalents per 100-request session on Opus 5.5, plus 2k for writing it into the cache. Every line has to earn that.
+- Disable MCP servers and plugins a project doesn't use (`/mcp`, `/plugin`). Claude Code defers many tool schemas until they're searched for, but their names and descriptions still load.
+- `/context` shows the breakdown for the current session.

@@ -7,7 +7,7 @@ A Claude Code skill, packaged as a plugin, that cuts the tokens and cost of each
 - **Prompt-cache-aware checkpoints.** A clear-or-keep test: clear when unused context × requests ahead > (write ÷ read price) × reload. It comes with a calculator, handles a cold cache, and produces ready-made checkpoint lines.
 - **Repo setup.** A guide and templates for a short AGENTS.md, a STATUS.md handoff, a roadmap read one section at a time, a decision index, a doc map, module contracts and a generated code map.
 
-Once installed, the skill costs about 150 tokens per session (its listing entry) and about 1.4k tokens when it's invoked, as measured by `claude plugin details`.
+Once installed, the skill costs about 150 tokens per session (its listing entry) and about 1.2k tokens when it's invoked (SKILL.md is ~4.7k characters at ~4 characters per token).
 
 ## Install
 
@@ -39,7 +39,7 @@ Claude loads the skill when a task matches its description:
 To load it explicitly, run `/token-optimization:token-optimization` (plugin) or `/token-optimization` (personal skill).
 
 Examples:
-- "Set this repo up for token-efficient agent work." Claude adapts the templates (AGENTS.md, CLAUDE.md, STATUS.md, DECISIONS.md, ROADMAP.md) and generates a code map.
+- "Set this repo up for token-efficient agent work." Claude adapts the templates (AGENTS.md, CLAUDE.md, STATUS.md, DECISIONS.md, ROADMAP.md, CHECKPOINTS.md) and generates a code map.
 - "Audit this repo for token waste." Claude reports a table of findings, fixes and their rough impact.
 - "Should I clear now?" Claude applies the clear-or-keep test and ends with a checkpoint line.
 
@@ -61,9 +61,9 @@ python3 skills/token-optimization/scripts/gen_map.py --out docs/MAP.md --check  
 ```
 .claude-plugin/              plugin.json and marketplace.json (this repo is both)
 skills/token-optimization/
-  SKILL.md                   cost model, session rules, clear-or-keep checkpoints
+  SKILL.md                   session rules, the clear-or-keep checkpoint test, links to the references
   references/                cost-model.md · reading-playbook.md · repo-setup.md
-  templates/                 AGENTS, CLAUDE, STATUS, DECISIONS and ROADMAP (*.template.md)
+  templates/                 AGENTS, CLAUDE, CHECKPOINTS, STATUS, DECISIONS and ROADMAP (*.template.md)
   scripts/                   clear_or_keep.py · gen_map.py
 tests/                       unit tests for the scripts
 ```
@@ -79,8 +79,8 @@ The templates are named `*.template.md` so that Claude Code never loads them as 
 ## Keeping prices current
 
 Prices were checked on 2026-10-22 against the [pricing page](https://platform.claude.com/docs/en/about-claude/pricing). When they change:
-1. Update `references/cost-model.md`.
-2. Update the ratio line and the threshold table in `SKILL.md`.
+1. Update the tables in `references/cost-model.md`.
+2. Update the "Why" paragraph and ratio line in `SKILL.md` and `templates/CHECKPOINTS.template.md`.
 3. Update `MODELS` in `scripts/clear_or_keep.py`.
 4. Bump `version` in `.claude-plugin/plugin.json`, so installed copies update.
 
