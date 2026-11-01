@@ -36,6 +36,7 @@ Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-c
 - Claude Code caches automatically. The sessions this skill was built in (Claude Code on a subscription plan) used the 1-hour TTL, falling back to 5 minutes during usage overage. Check what your setup uses: on the API, `usage.cache_creation` splits writes by TTL.
 - Thinking is billed as output. Recent models keep earlier turns' thinking blocks in the prompt, so long thinking is also carried forward like any other context.
 - Totals: `input_tokens` is only the uncached remainder. The full prompt is `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`.
+- **Measure, don't assume.** In Claude Code, `/context` shows the cache breakdown; on the API, watch the `cache_read` share of the full prompt. If it drops mid-session, something in the prefix changed (see the invalidation table) — find and fix it before it compounds across every later request.
 
 ## What invalidates the cache
 

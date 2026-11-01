@@ -27,12 +27,12 @@ Every request (each tool round trip) re-sends the whole context. Relative to fre
 1. **Load progressively:** entry file (automatic) → `STATUS.md` → the current roadmap section → only the docs it names.
 2. **Locate before reading:** code map → module contract (header comment) → `grep -n` → a line range. For a long doc, `grep -n '^## ' FILE` and read one section.
 3. **Skip bulky files:** lockfiles, generated code, build output, vendored data, snapshots (unless reviewing them).
-4. **Quiet commands:** failures-only tests, summarized checks, `gh run view --log-failed`; cap with `head`, `tail`, `cut -c1-200`, `--stat`, `jq`. Grep a saved large output instead of reading it.
+4. **Quiet commands:** failures-only tests, summarized checks, `gh run view --log-failed`; cap with `head`, `tail`, `cut -c1-200`, `--stat`, `jq`. Grep a saved large output instead of reading it. Check paths and quoting *before* running a command: a failed call's error enters context at the write price, and so does the retry.
 5. **Batch** independent tool calls in one message.
 6. **Don't re-read** what is in context and unchanged, including files you just wrote or edited.
 7. **Write less:** new files in one pass, targeted edits to existing ones, short replies that don't echo tool output, diffs or file contents. Match thinking effort to the task.
 8. **Look facts up once:** fetch with an extraction prompt or a page's `.md` version, record the result with date and source (e.g. DECISIONS.md), and cite the record afterwards.
-9. **Decide once:** 2–4 options with a recommended default; record the outcome; never reopen it without the owner.
+9. **Decide once, ask once:** put every open question in one batched message (2–4 options, recommended default first); record the outcome; never reopen it without the owner. Each round trip re-reads the whole context.
 10. **Subagents start cold:** use one only when it keeps far more out of the main context than its run costs (a sweeping search), on a cheaper model when the work is mechanical.
 11. **Break the cache rarely, and all at once:** switching model, fast mode or effort, changing MCP servers, plugins or skills, or editing an entry file each re-writes the cache from that point on. Make all of them right after a `/clear`, never mid-session.
 
