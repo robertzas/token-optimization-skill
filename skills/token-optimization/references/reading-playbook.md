@@ -40,6 +40,12 @@ Every line of output lands in context once at the write price and is then carrie
 
 The best single investment is a repo-level `check` command that runs everything CI gates on and prints only a summary and the failures: one call, one short output.
 
+## Filter before it enters context
+
+- A `PreToolUse` hook can rewrite a noisy command (for example append `2>&1 | grep -A5 -E '(FAIL|ERROR)' | head -100` to a test run) so the full log never lands in context. Stronger than quiet flags when a tool's output is huge.
+- Prefer CLI tools (`gh`, `aws`, `gcloud`, …) over MCP servers when both exist: an MCP server adds tool names and descriptions to every request even when deferred, a CLI adds nothing. Disable servers you aren't using (`/mcp`).
+- In typed languages, a code-intelligence plugin (LSP) replaces grep-plus-read with go-to-definition, and reports type errors after edits without a compiler run.
+
 ## The web
 
 - Fetch with a prompt that names exactly the facts to extract.

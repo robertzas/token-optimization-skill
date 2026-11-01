@@ -22,7 +22,7 @@ These are the pieces used in the repo this skill came from, with why each one sa
 
 `AGENTS.md` (from `templates/AGENTS.template.md`) holds the standing directives, the session protocol, the token rules, a doc map and the definition of done, and nothing else. `CLAUDE.md` (from `templates/CLAUDE.template.md`) is the line `@AGENTS.md` plus Claude Code specifics, so every agent reads the same source. The clear-or-keep maths stays out of the entry file, in `CHECKPOINTS.md` (section 11).
 
-Keep the entry file short: every request of every session carries it.
+Keep the entry file short: every request of every session carries it. Aim for under ~200 lines; move specialized workflows (PR reviews, migrations) into skills that load on demand.
 
 ## 2. A handoff file
 
@@ -70,7 +70,7 @@ A table in the entry file maps each need to the doc that covers it. Agents go st
 ## 8. Quiet tooling
 
 - Provide one `check` command that runs everything CI gates on and prints only a summary and the failures.
-- Configure test runners for failures-only output (see `reading-playbook.md`).
+- Configure test runners for failures-only output, or filter with a `PreToolUse` hook so bulky output never enters context (see `reading-playbook.md`).
 - List the files agents must not read in the entry file: lockfiles, generated code, build output, data, snapshots.
 - Optionally enforce that list with Claude Code permission rules, for example `"permissions": {"deny": ["Read(./Cargo.lock)", "Read(./target/**)"]}` in `.claude/settings.json`.
 

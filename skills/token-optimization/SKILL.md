@@ -35,6 +35,8 @@ Every request (each tool round trip) re-sends the whole context. Relative to fre
 9. **Decide once, ask once:** put every open question in one batched message (2–4 options, recommended default first); record the outcome; never reopen it without the owner. Each round trip re-reads the whole context.
 10. **Subagents start cold:** use one only when it keeps far more out of the main context than its run costs (a sweeping search), on a cheaper model when the work is mechanical.
 11. **Break the cache rarely, and all at once:** switching model, fast mode or effort, changing MCP servers, plugins or skills, or editing an entry file each re-writes the cache from that point on. Make all of them right after a `/clear`, never mid-session.
+12. **No idle burn:** scheduled loops, cross-session messages, goal check-ins, prompt suggestions and idle compaction each re-send the full context on a timer while the session sits idle. Turn off what you don't use.
+13. **Avoid rework:** on complex tasks, plan first (plan mode), state verification targets, and stop (`Esc`) or rewind at the first wrong turn. A wrong direction costs its whole exploration at the write price plus every later read.
 
 ## Checkpoints: clear or keep
 
@@ -49,6 +51,7 @@ Only the user can run `/clear`. At a natural boundary (task done, docs updated, 
 - **Before any clear,** rewrite `STATUS.md`, commit and push. Prefer `/clear` + `STATUS.md` to `/compact`.
 - **Switch model or fast mode right after a clear;** either change re-writes the cache.
 - **Mid-task,** apply the test only when quality slips or the user will be away longer than the TTL.
+- **Measure at every checkpoint:** run `/usage` and act on its recommendations (it names rows like "trim CLAUDE.md · 49k tokens per request"); the prompt-cache line shows your hit rate and miss causes. Cap a session with `--max-budget-usd`. `/insights` audits your session history for waste.
 
 End the reply with one of these. When keeping and the repo's directives say to continue, carry on instead.
 - `✅ Checkpoint — /clear recommended (<why>). Next: <task>. After clearing, say "continue".`

@@ -6,6 +6,7 @@ Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-c
 - Prices
 - How a session is billed
 - What invalidates the cache
+- Cache mechanics that bite
 - The clear-or-keep test
 - Worked example
 - /compact versus /clear
@@ -52,6 +53,20 @@ The cache is a prefix in the order tools → system → messages. A change inval
 | Idling longer than the TTL | everything |
 
 Each change re-writes the cache from its point onward, so bundle every prefix-breaking change — model, speed, effort, tools, entry files — into one burst right after a `/clear`. Never make them one by one partway through a long session: each one makes everything after it a cache miss.
+
+## Cache mechanics that bite
+
+Details from the [prompt caching docs](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) that surprise people:
+
+- **The lookback window is 20 blocks.** Cache reads walk back at most 20 positions from the breakpoint looking for an entry a prior request wrote. If a turn adds 20+ blocks, the last write falls out of the window and the next request re-writes everything. A run of consecutive `tool_use` blocks counts as *one* position (same for `tool_result`), so batching independent calls in parallel protects the cache; many small sequential turns erode it.
+- **Minimum cacheable length.** Prompts shorter than the model's minimum are silently not cached (no error; both cache usage fields are 0): 512 tokens for Opus 5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.1; 1,024 for Sonnet 5 and Opus 4.8; 4,096 for Opus 4.5/4.6 and Haiku 4.5. Don't micro-optimize tiny contexts — there is nothing to cache.
+- **A cache entry is usable only after the first response starts.** Concurrent requests fired at once can all miss; stagger them if the hits matter.
+- **Thinking blocks.** On Opus 4.5+, Sonnet 4.6+ and Haiku 5.5, thinking blocks are preserved and stay in the cached prefix (and count as input when read from cache). On older models, adding any non-tool-result content strips previously cached thinking and invalidates everything after it.
+- **Breakpoint placement.** The breakpoint belongs on the last block whose prefix is identical across requests — never on a varying suffix like a timestamp or the incoming message. In a growing conversation the final block works as long as each turn adds fewer than 20 blocks.
+
+**Tracking.** In Claude Code, `/usage` shows a "Prompt cache" line: requests, % of input served from cache, misses (with a likely cause, e.g. "tool definitions changed"), and warm/cold state; `/context` shows the size breakdown. On the API, `cache_read_input_tokens` ÷ (`cache_read` + `cache_creation` + `input`) is your hit rate. A dropping hit rate means a prefix change — find it in the table above.
+
+**Offline bulk work.** The Batch API prices messages at 50% and stacks with the cache multipliers — use it for evals, bulk rewrites and other non-interactive work.
 
 ## The clear-or-keep test
 

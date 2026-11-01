@@ -5,6 +5,7 @@ A Claude Code skill, packaged as a plugin, that cuts the tokens and cost of each
 - **Cost model first.** Every request re-sends the whole context. Cached context costs 0.025–0.1× fresh input on every request, new context costs 1.25–2× once, and output costs 5×. The rules follow from that.
 - **Session rules.** Load docs progressively, locate before reading, run quiet commands, batch tool calls, don't re-read, edit rather than rewrite, look facts up once, decide once.
 - **Prompt-cache-aware checkpoints.** A clear-or-keep test: clear when unused context × requests ahead > (write ÷ read price) × reload. It comes with a calculator, handles a cold cache, and produces ready-made checkpoint lines.
+- **Measure and audit.** `/usage` shows cache hit rate, miss causes and per-behavior recommendations; `/insights` audits session history; `--max-budget-usd` caps a session; the cost model documents the cache mechanics that bite (20-block lookback, minimum cacheable length, invalidation triggers).
 - **Repo setup.** A guide and templates for a short AGENTS.md, a STATUS.md handoff, a roadmap read one section at a time, a decision index, a doc map, module contracts and a generated code map.
 
 Once installed, the skill costs about 150 tokens per session (its listing entry) and about 1.2k tokens when it's invoked (SKILL.md is ~4.7k characters at ~4 characters per token).
