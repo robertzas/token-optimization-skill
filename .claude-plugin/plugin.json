@@ -1,8 +1,8 @@
 {
   "name": "token-optimization",
   "displayName": "Token Optimization",
-  "version": "0.1.0",
-  "description": "Token-efficient agentic coding for Claude Code: progressive loading, quiet tools, prompt-cache-aware clear-or-keep checkpoints, and a repo setup that keeps sessions cheap.",
+  "version": "0.3.0",
+  "description": "Cost-first agentic coding for Claude Code: progressive loading, quiet tools, prompt-cache-aware clear-or-keep checkpoints, a cost ledger, single-source prices, enforced read guards, and a repo setup that keeps sessions cheap.",
   "author": {
     "name": "Robert Z",
     "url": "https://github.com/robertzas"

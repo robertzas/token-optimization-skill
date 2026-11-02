@@ -1,13 +1,20 @@
 # Cost model
 
-Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-claude/pricing. When they change, update the tables here, the "Why" paragraph and ratio line in SKILL.md, `templates/CHECKPOINTS.template.md`, and `MODELS` in `scripts/clear_or_keep.py`.
+Prices live in `scripts/prices.json`; the table below is generated from it. Edit that file, then run `python3 scripts/prices.py --doc`. CI runs `--check`, so the doc cannot drift from the calculator. Checked 2026-10-22 at https://platform.claude.com/docs/en/about-claude/pricing.
+
+Cost is the objective; correctness is a constraint. The rules below follow from one fact: every request re-sends the whole context.
 
 ## Contents
 - Prices
 - How a session is billed
+- What a request costs
+- The lifetime of a tool output
+- Choosing the TTL
 - What invalidates the cache
 - Cache mechanics that bite
+- Cache habits
 - The clear-or-keep test
+- Measuring a session
 - Worked example
 - /compact versus /clear
 - Subagents
@@ -15,16 +22,23 @@ Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-c
 
 ## Prices (USD per million tokens)
 
-| Model | Input | 5-min cache write | 1-hour cache write | Cache read | Output | Read ÷ input |
+<!-- prices:start -->
+| Model | Input | 5-min write | 1-hour write | Cache read | Output | Read ÷ input |
 |---|---|---|---|---|---|---|
-| Fable 5.1 | 10 | 12.50 | 20 | 0.25 | 50 | 0.025 |
-| Opus 5.5 | 4 | 5 | 8 | 0.20 | 20 | 0.05 |
-| Opus 5, 4.8, 4.7, 4.6, 4.5 | 5 | 6.25 | 10 | 0.50 | 25 | 0.1 |
-| Sonnet 5.5 | 2 | 2.50 | 4 | 0.10 | 10 | 0.05 |
-| Sonnet 5 | 2 | 2.50 | 4 | 0.20 | 10 | 0.1 |
-| Sonnet 4.6, 4.5 | 3 | 3.75 | 6 | 0.30 | 15 | 0.1 |
-| Haiku 5.5 (prompts up to 100k) | 0.10 | 0.125 | 0.20 | 0.01 | 0.50 | 0.1 |
-| Haiku 4.5 | 1 | 1.25 | 2 | 0.10 | 5 | 0.1 |
+| Fable 5.1 | 10 | 12.5 | 20 | 0.25 | 50 | 0.025 |
+| Opus 4.5 | 5 | 6.25 | 10 | 0.5 | 25 | 0.1 |
+| Opus 4.6 | 5 | 6.25 | 10 | 0.5 | 25 | 0.1 |
+| Opus 4.7 | 5 | 6.25 | 10 | 0.5 | 25 | 0.1 |
+| Opus 4.8 | 5 | 6.25 | 10 | 0.5 | 25 | 0.1 |
+| Opus 5 | 5 | 6.25 | 10 | 0.5 | 25 | 0.1 |
+| Opus 5.5 | 4 | 5 | 8 | 0.2 | 20 | 0.05 |
+| Sonnet 4.5 | 3 | 3.75 | 6 | 0.3 | 15 | 0.1 |
+| Sonnet 4.6 | 3 | 3.75 | 6 | 0.3 | 15 | 0.1 |
+| Sonnet 5 | 2 | 2.5 | 4 | 0.2 | 10 | 0.1 |
+| Sonnet 5.5 | 2 | 2.5 | 4 | 0.1 | 10 | 0.05 |
+| Haiku 4.5 | 1 | 1.25 | 2 | 0.1 | 5 | 0.1 |
+| Haiku 5.5 | 0.1 | 0.125 | 0.2 | 0.01 | 0.5 | 0.1 |
+<!-- prices:end -->
 
 - On every model listed, a 5-minute cache write costs 1.25× input, a 1-hour write costs 2× and output costs 5×.
 - Haiku 5.5 prompts over 100k tokens cost 5× the rates above.
@@ -38,6 +52,48 @@ Prices were checked on 2026-10-22 at https://platform.claude.com/docs/en/about-c
 - Thinking is billed as output. Recent models keep earlier turns' thinking blocks in the prompt, so long thinking is also carried forward like any other context.
 - Totals: `input_tokens` is only the uncached remainder. The full prompt is `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`.
 - **Measure, don't assume.** In Claude Code, `/context` shows the cache breakdown; on the API, watch the `cache_read` share of the full prompt. If it drops mid-session, something in the prefix changed (see the invalidation table) — find and fix it before it compounds across every later request.
+
+## What a request costs
+
+Each request re-sends the whole context, so its size sets the cost of every round trip. On Opus 5.5 (read 0.05×, $4/M input):
+
+| Context | One request | 10 requests | 100 requests |
+|---|---|---|---|
+| 50k | $0.01 | $0.10 | $1.00 |
+| 100k | $0.02 | $0.20 | $2.00 |
+| 150k | $0.03 | $0.30 | $3.00 |
+| 200k | $0.04 | $0.40 | $4.00 |
+
+- Ten thousand tokens carried for 100 requests cost 0.05 × 10k × 100 = 50k equivalents ($0.20). That is the price of one avoidable section of a doc per work package.
+- Merging eight sequential lookups into two calls at 150k saves six round trips, about $0.18. The lookups themselves are cheap; the requests are the cost.
+- Parallel calls are not free either. They save round trips, but a speculative read is paid once and then carried; parallelize only when every result will be used.
+
+## The lifetime of a tool output
+
+A write is paid once; the carry is paid every request. For X tokens of tool output over c requests:
+
+`cost = w·X + r·X·c`
+
+On Opus 5.5 (w = 2, r = 0.05), over a 100-request WP:
+
+| Output | Write | Carried | Total | USD |
+|---|---|---|---|---|
+| 1k | 2k | 5k | 7k | $0.03 |
+| 10k | 20k | 50k | 70k | $0.28 |
+| 30k | 60k | 150k | 210k | $0.84 |
+| 100k | 200k | 500k | 700k | $2.80 |
+
+This is why a 30k dump is not "30k tokens": it is 210k equivalents. Read lazily, filter at the source, and prefer a saved file plus a grep over a full read. A stale doc that causes 20k of exploration costs ~$0.56 the same way.
+
+## Choosing the TTL
+
+A cache write costs 1.25× input on the 5-minute TTL and 2× on the 1-hour TTL. Compare the premium with what it avoids:
+
+- **No pause longer than 5 minutes:** the 5m TTL wins; its only write is 0.75×C cheaper than 1h. A cache hit refreshes the TTL for free, so a steady stream of requests keeps a 5m entry alive indefinitely.
+- **One expiry-driven rewrite:** 5m pays 1.25×C twice (2.5×C); 1h pays 2×C and wins. Human-paced work pauses for more than 5 minutes often, so 1h is usually right at a keyboard.
+- Continuous automation with no human pauses is the case for 5m; a human-paced session is the case for 1h.
+
+Claude Code picks the TTL for you (1-hour on subscription plans, falling back to 5 minutes during overage), so this matters when the TTL is under your control on the API or through a gateway.
 
 ## What invalidates the cache
 
@@ -67,6 +123,12 @@ Details from the [prompt caching docs](https://platform.claude.com/docs/en/build
 **Tracking.** In Claude Code, `/usage` shows a "Prompt cache" line: requests, % of input served from cache, misses (with a likely cause, e.g. "tool definitions changed"), and warm/cold state; `/context` shows the size breakdown. On the API, `cache_read_input_tokens` ÷ (`cache_read` + `cache_creation` + `input`) is your hit rate. A dropping hit rate means a prefix change — find it in the table above.
 
 **Offline bulk work.** The Batch API prices messages at 50% and stacks with the cache multipliers — use it for evals, bulk rewrites and other non-interactive work.
+
+## Cache habits
+
+- **Append-only:** treat the transcript as a log. Corrections go in a new message; `/rewind` only to a prefix that existed. Rewriting earlier turns invalidates the cache from that point.
+- **Don't clear, reload, then walk away:** the reload is written at 2×; if you pause past the TTL before using it, that write is wasted. Clear when you are about to work, not before a break.
+- **Stagger parallel sessions and subagents** by a second or two: a cache entry is usable only after the first response starts, so the later one can hit the shared base.
 
 ## The clear-or-keep test
 
@@ -110,6 +172,19 @@ Read the other way, as a threshold on D (ratio 40, R ≈ 25k):
 
 **Estimating sizes.** English and code run about 4 characters per token, and 100 lines of code is roughly 1k tokens. For a file, use `wc -c FILE` ÷ 4. In Claude Code, `/context` shows the actual total.
 
+## Measuring a session
+
+Keep a ledger (`docs/COST.md`, from `templates/COST.template.md`) with one row per work package: requests, total prompt tokens, cache-hit share, output tokens, dollars, and the clear-or-keep decision. Take the numbers from `/usage` or a statusline at the checkpoint.
+
+Run `scripts/cost_report.py` at each checkpoint (or in CI with `--max-median`): it prints median, p75, the last-five trend, the cache trend and any WP at more than twice the median. `audit_transcript.py` reads one session JSONL and names the files read most, the re-reads, the largest turn and the estimated cost.
+
+- **Cost per completed WP is the metric**, not cost per session. A cheap session that has to be redone is not cheap.
+- A WP at more than twice the median is a leak: a stale map, a grown entry file, rework, or an unusually large reload.
+- The cache-hit share should stay high. A drop mid-session means a prefix change; find it in the invalidation table.
+- Give each WP a dollar budget. Exceeding it usually means the WP was too big; split it next time.
+
+Prompt tokens are `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; `input_tokens` alone is only the uncached remainder.
+
 ## Worked example (Opus 5.5, 1-hour TTL)
 
 At the end of a work package the context holds 120k tokens: 30k of base prompt, 20k the next package needs, and 70k it won't use. The next package will take about 100 requests.
@@ -131,12 +206,15 @@ A subagent starts with a fresh context. It pays for its own base prompt and ever
 
 Example: a search reads 60k tokens to produce a 2k answer, and the main session has 100 requests ahead. Done inline, it costs about 2 × 60k + 0.05 × 58k × 100 ≈ 410k equivalents. In a subagent it costs about 2 × (60k + its base prompt), well under that. For small lookups, work inline.
 
-A mechanical subagent (search, bulk rename, log triage) can run on a cheaper model: the same tokens on Haiku 4.5 cost a fifth of Opus 4.8, and Sonnet 5.5 half of Opus 5.5. Keep judgment-heavy work on the main model.
+A report is written at 5× and then carried at the read price by every later request: a 5k report over 100 requests costs 0.05 × 5k × 100 = 25k equivalents (about $0.10). Cap it at ~40 lines, `file:line` references and no code dumps. Stagger parallel subagents by a second or two: a cache entry is usable only after the first response starts, so later subagents can hit the first one's cached system prompt and tool definitions. Only that shared prefix is reused; their own reading is still paid in full.
+
 
 ## Fixed per-request overhead
 
 Some tokens ride on every request before any work happens: the system prompt, tool definitions (including every enabled MCP server's tools), the listing of installed skills, and the entry files (CLAUDE.md, AGENTS.md and their `@` imports). They are cheap per request because they are cached, but they are paid on every request of every session, and a change to any of them re-writes the cache from that point on.
 
 - An entry file of 1k tokens costs 0.05 × 1k × 100 = 5k equivalents per 100-request session on Opus 5.5, plus 2k for writing it into the cache. Every line has to earn that.
+- Measure the total once per session with `/context` and keep it under ~15k. 10k of tool definitions or plugin tools costs 0.05 × 10k × 100 = 50k equivalents (about $0.20) per 100-request WP.
 - Disable MCP servers and plugins a project doesn't use (`/mcp`, `/plugin`). Claude Code defers many tool schemas until they're searched for, but their names and descriptions still load.
 - `/context` shows the breakdown for the current session.
+- Every line in the entry file is paid on every request; a hook or permission is free until it fires. Move anything enforceable out of prose.

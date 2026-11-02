@@ -8,7 +8,7 @@
     {
       "name": "token-optimization",
       "source": "./",
-      "description": "Progressive loading, quiet tools, prompt-cache-aware clear-or-keep checkpoints, and a repo setup that keeps sessions cheap."
+      "description": "Cost-first progressive loading, quiet tools, prompt-cache-aware clear-or-keep checkpoints, a cost ledger, single-source prices, enforced read guards, and a repo setup that keeps sessions cheap."
     }
   ]
 }

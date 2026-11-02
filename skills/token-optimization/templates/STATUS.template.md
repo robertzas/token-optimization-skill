@@ -3,6 +3,7 @@
 **Milestone:** M<n> — <title>
 **Next WP:** M<n>.<k> — <title>
 **Last done:** M<n>.<k-1> — <title> (<YYYY-MM-DD>)
+**Last WP cost:** ~$<n>, <n> requests, <p>% cached
 
 ## Start here (next session)
 

@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -98,11 +99,71 @@ class Cli(unittest.TestCase):
                                        "--model", "opus-5", "--ttl", "5m", "--json"))
         self.assertAlmostEqual(data["ratio"], 12.5)
 
+    def test_session_segment_in_checkpoint_line(self):
+        out = self.run_cli("--unused", "60k", "--requests", "100",
+                           "--session", "61 requests, 58% cached, $1.84")
+        self.assertIn("session: 61 requests, 58% cached, $1.84", out)
+
     def test_bad_input_exits_with_usage_error(self):
         result = subprocess.run([sys.executable, str(SCRIPTS / "clear_or_keep.py"), "--unused", "lots"],
                                 capture_output=True, encoding="utf-8")
         self.assertEqual(result.returncode, 2)
         self.assertIn("not a token count", result.stderr)
+
+
+class Measure(unittest.TestCase):
+    def run_cli(self, *args):
+        result = subprocess.run([sys.executable, str(SCRIPTS / "clear_or_keep.py"), *args],
+                                capture_output=True, encoding="utf-8", check=True)
+        return result.stdout
+
+    def test_whole_file_and_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ROADMAP.md"
+            path.write_text("# R\n\n## M0 — A\n" + "x" * 800 + "\n\n## M1 — B\n" + "y" * 800 + "\n",
+                            encoding="utf-8")
+            whole = ck.measure_spec(str(path))
+            found = ck.measure_spec(f"{path}:M0")
+            self.assertEqual(found["section"], "M0")
+            self.assertLess(found["tokens"], whole["tokens"])
+            self.assertGreater(found["tokens"], 100)
+
+    def test_missing_section_and_missing_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "R.md"
+            path.write_text("## M0 — A\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                ck.measure_spec(f"{path}:M9")
+            with self.assertRaises(ValueError):
+                ck.measure_spec(str(Path(tmp) / "nope.md"))
+
+    def test_cli_measure_replaces_the_reload_guess(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "STATUS.md"
+            path.write_text("x" * 4_000, encoding="utf-8")
+            data = json.loads(self.run_cli("--unused", "60k", "--measure", str(path), "--json"))
+            self.assertEqual(data["measured_reload"], 1_000)
+            self.assertEqual(data["reload"], 11_000)
+            self.assertEqual(data["measure"][0]["section"], None)
+
+    def test_cli_measure_accepts_several_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first = Path(tmp) / "one.md"
+            second = Path(tmp) / "two.md"
+            first.write_text("x" * 400, encoding="utf-8")
+            second.write_text("y" * 400, encoding="utf-8")
+            data = json.loads(self.run_cli("--unused", "60k", "--measure", str(first), str(second),
+                                           "--json"))
+            self.assertEqual(len(data["measure"]), 2)
+            self.assertEqual(data["measured_reload"], 200)
+            self.assertEqual(data["reload"], 10_200)
+
+    def test_both_reload_and_measure_is_an_error(self):
+        result = subprocess.run([sys.executable, str(SCRIPTS / "clear_or_keep.py"),
+                                 "--unused", "60k", "--reload", "25k", "--measure", "x.md"],
+                                capture_output=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("either --reload or --measure", result.stderr)
 
 
 if __name__ == "__main__":

@@ -21,7 +21,12 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Unit tests
         run: python -m unittest discover -s tests -q
+      - name: Scripts compile and prices are fresh
+        run: |
+          python -m compileall -q skills/token-optimization/scripts tests
+          python skills/token-optimization/scripts/prices.py --check
       - name: Manifests are valid JSON
         run: |
           python -m json.tool .claude-plugin/plugin.json > /dev/null
           python -m json.tool .claude-plugin/marketplace.json > /dev/null
+          python -m json.tool skills/token-optimization/templates/settings.template.json > /dev/null

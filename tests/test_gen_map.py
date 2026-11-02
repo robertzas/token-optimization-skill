@@ -110,5 +110,27 @@ class BuildMap(unittest.TestCase):
         self.assertIn("Core types.", text)
 
 
+class TokensAndSections(unittest.TestCase):
+    def test_compact_token_estimate(self):
+        cases = {400: "400", 1_200: "1.2k", 14_400: "14k", 1_500_000: "1.5M"}
+        for n, text in cases.items():
+            with self.subTest(n=n):
+                self.assertEqual(gm.fmt_tokens(n), text)
+
+    def test_markdown_sections_skip_fences(self):
+        text = "# Doc\n\n## A\n\n```\n## not a heading\n```\n\n## B\n"
+        self.assertEqual(gm.markdown_sections(text), ((3, "A"), (9, "B")))
+
+    def test_map_shows_tokens_for_large_files_and_sections_for_docs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "big.py").write_text('"""Big module."""\n' + "x = 1\n" * 120, encoding="utf-8")
+            (root / "doc.md").write_text("# Doc\n\n## Alpha\n" + "text\n" * 10
+                                          + "\n## Beta\n" + "more\n" * 10, encoding="utf-8")
+            text = gm.build_map(root)
+            self.assertIn("`big.py` (~100 L, ~", text)
+            self.assertIn("`doc.md` (<50) — Doc\n  - sections: Alpha (L3) · Beta (L15)", text)
+
+
 if __name__ == "__main__":
     unittest.main()
